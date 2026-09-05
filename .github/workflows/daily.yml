@@ -3,7 +3,7 @@ name: Daily Lesson Automation
 
 on:
   schedule:
-    - cron: '1 5 * * *'  # Kay-kdem kulla sba3
+    - cron: '0 14 * * *'  # Kay-kdem kulla sba3
   workflow_dispatch:      # Kay-khllik t-runnih manuellement f l-blassa
 
 jobs:
