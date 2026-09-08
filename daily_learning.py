@@ -1,78 +1,126 @@
 import os
 import smtplib
+from datetime import date, datetime
 from email.mime.text import MIMEText
+
 from google import genai
 
-# Load local .env file if it exists (for local running)
-env_path = os.path.join(os.path.dirname(__file__), ".env")
-if os.path.exists(env_path):
-    with open(env_path, "r", encoding="utf-8") as f:
-        for line in f:
+
+def load_local_env():
+    """Load a local .env file without overwriting GitHub Actions secrets."""
+    env_path = os.path.join(os.path.dirname(__file__), ".env")
+    if not os.path.exists(env_path):
+        return
+
+    with open(env_path, "r", encoding="utf-8") as env_file:
+        for line in env_file:
             line = line.strip()
             if line and not line.startswith("#") and "=" in line:
-                k, v = line.split("=", 1)
-                os.environ.setdefault(k.strip(), v.strip())
+                key, value = line.split("=", 1)
+                os.environ.setdefault(key.strip(), value.strip())
 
-# Read environment variables (supports GitHub Secrets and local .env)
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
-SENDER_EMAIL = os.environ.get("SENDER_EMAIL")
-SENDER_PASSWORD = os.environ.get("SENDER_PASSWORD")
-RECEIVER_EMAIL = os.environ.get("RECEIVER_EMAIL", SENDER_EMAIL)
 
-client = genai.Client(
-    api_key=GEMINI_API_KEY,
-    http_options={'api_version': 'v1beta'}
-)
-# Topic d l-yowm
-topic = "Fundamentals - Variables and Data Types in Python"
+COURSE_STAGES = [
+    "Foundation: essential concepts and vocabulary",
+    "Setup and tools: professional environment and workflow",
+    "Core skills: the most important concepts and techniques",
+    "Intermediate practice: solve realistic problems",
+    "Building: create useful small projects",
+    "Quality: testing, debugging, documentation, and best practices",
+    "Integration: tools, APIs, data, and collaboration where relevant",
+    "Security and performance: safe, reliable, efficient work",
+    "Production: deployment, maintenance, and professional workflow",
+    "Expert practice: portfolio projects and advanced real-world cases",
+]
 
-prompt = f"""
-Anta ostad kbir f Python. 3tini dars d l-yowm b tariqa tatbiqiya 100% (pratique w hands-on) f Darija Marocaine m3a Français.
 
-Sujet: {topic}
+def get_today_lesson():
+    course_start = os.environ.get("COURSE_START_DATE", "2026-09-08")
+    try:
+        start_date = datetime.strptime(course_start, "%Y-%m-%d").date()
+    except ValueError as error:
+        raise RuntimeError("COURSE_START_DATE must use YYYY-MM-DD format.") from error
 
-Kteb l-contenu kamel b HTML nqi w design m-style b CSS inline (fond sombre/clair zwin, code blocks mefrouzin, boutons w liens cliquables) fih had l-ajzaa2:
-1. 💡 **L-Mafhoum b Khtissar:** Chno howa had l-concept w 3lach kaynfe3 f l-waqi3 (b Darija sahla).
-2. 💻 **Code Tatbiqi (Hands-on):** Amthila dyal bseh mchrou7in bl-code.
-3. 🛠️ **Tamrin / Challenge Tatbiqi:** Exercice b Darija bach n-tbe9 biya w f l-lekher l-7ell dialo m3a l-chere7.
-4. 🎥 **A7san Vidéos Ta3limiya (Masadir I7tirafiya):**
-   - 3tini a7san vidéos li y-choufhüm f had l-mawdo3 (b7al FreeCodeCamp, Corey Schafer, Bro Code, wlla chanat b Darija).
-   - Dir bouton wlla lien direct cliquable l YouTube search:
-     <p style="margin-top: 15px;">
-       <a href="https://www.youtube.com/results?search_query=python+{topic.replace(' ', '+')}+tutorial" 
-          style="background-color: #FF0000; color: white; padding: 10px 18px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">
-          ▶️ Tferrej f a7san vidéos f YouTube 3la had Dars
-       </a>
-     </p>
+    elapsed_days = (date.today() - start_date).days
+    if elapsed_days < 0:
+        raise RuntimeError("COURSE_START_DATE cannot be in the future.")
 
-Mat-zidch doctype w html/head tags, 3tini ghir div stylé b CSS inline li y-ban zwin f Gmail.
+    course_day = elapsed_days + 1
+    stage_index = min((course_day - 1) // 7, len(COURSE_STAGES) - 1)
+    return course_day, stage_index, COURSE_STAGES[stage_index]
+
+
+def get_required_settings():
+    settings = {
+        "GEMINI_API_KEY": os.environ.get("GEMINI_API_KEY"),
+        "SENDER_EMAIL": os.environ.get("SENDER_EMAIL"),
+        "SENDER_PASSWORD": os.environ.get("SENDER_PASSWORD"),
+        "RECEIVER_EMAIL": os.environ.get("RECEIVER_EMAIL"),
+        "COURSE_SUBJECT": os.environ.get("COURSE_SUBJECT", "Python"),
+    }
+    missing = [name for name, value in settings.items() if not value]
+    if missing:
+        raise RuntimeError(f"Missing required settings: {', '.join(missing)}")
+    return settings
+
+
+def main():
+    load_local_env()
+    settings = get_required_settings()
+    course_day, stage_index, stage = get_today_lesson()
+    subject = settings["COURSE_SUBJECT"]
+    progress = f"Dars {course_day} | Mar7ala {stage_index + 1}/{len(COURSE_STAGES)}"
+
+    prompt = f"""
+You are an expert teacher. Create today's professional, practical lesson in Moroccan Darija with simple French where useful.
+
+This is {progress} of an ordered roadmap for the subject below. The current stage is: {stage}
+
+Subject: {subject}
+
+Choose exactly one new, concrete lesson that belongs to this stage and is useful for becoming professional in this subject. Build on earlier days. Never repeat a previous lesson. State the selected lesson title clearly at the top of the email.
+
+Return only a clean HTML div with inline CSS that works in Gmail. Do not include markdown fences, doctype, html, or head tags. Use a clean, readable, professional design.
+
+Include these sections:
+1. Lesson title and roadmap progress.
+2. A concise explanation in easy Darija: what it is, why it matters, and when professionals use it.
+3. A hands-on code example with a clear line-by-line explanation.
+4. A realistic practice challenge in Darija, followed by a separate complete solution and explanation.
+5. Common mistakes and professional tips.
+6. A clickable YouTube search link for a high-quality tutorial about this exact topic.
+
+The lesson must be self-contained, accurate, and suitable for someone progressing toward professional-level work in this subject.
 """
 
-# 1. Générer Dars mn Gemini
-response = client.models.generate_content(
-    model='gemini-3.6-flash',
-    contents=prompt
-)
+    client = genai.Client(
+        api_key=settings["GEMINI_API_KEY"],
+        http_options={"api_version": "v1beta"},
+    )
+    response = client.models.generate_content(
+        model="gemini-3.6-flash",
+        contents=prompt,
+    )
 
-# N9i l-HTML mn backticks ila kano
-email_html = response.text.strip()
-if email_html.startswith("```html"):
-    email_html = email_html[7:]
-elif email_html.startswith("```"):
-    email_html = email_html[3:]
-if email_html.endswith("```"):
-    email_html = email_html[:-3]
-email_html = email_html.strip()
+    email_html = response.text.strip()
+    if email_html.startswith("```html"):
+        email_html = email_html[7:]
+    elif email_html.startswith("```"):
+        email_html = email_html[3:]
+    if email_html.endswith("```"):
+        email_html = email_html[:-3]
 
-# 2. Setup Email b format HTML
-msg = MIMEText(email_html, 'html', 'utf-8')
-msg['Subject'] = f"📚 Dars Python Tatbiqi: {topic}"
-msg['From'] = SENDER_EMAIL
-msg['To'] = RECEIVER_EMAIL
+    message = MIMEText(email_html.strip(), "html", "utf-8")
+    message["Subject"] = f"{subject} | {progress}"
+    message["From"] = settings["SENDER_EMAIL"]
+    message["To"] = settings["RECEIVER_EMAIL"]
 
-# 3. Sift Email
-with smtplib.SMTP_SSL('smtp.gmail.com', 465) as server:
-    server.login(SENDER_EMAIL, SENDER_PASSWORD.replace(" ", ""))
-    server.sendmail(SENDER_EMAIL, RECEIVER_EMAIL, msg.as_string())
+    with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+        server.login(settings["SENDER_EMAIL"], settings["SENDER_PASSWORD"].replace(" ", ""))
+        server.sendmail(settings["SENDER_EMAIL"], settings["RECEIVER_EMAIL"], message.as_string())
 
-print("[OK] Dars t-sift f l-email successfully!")
+    print(f"[OK] {progress} sent for {subject} ({stage})")
+
+
+if __name__ == "__main__":
+    main()
