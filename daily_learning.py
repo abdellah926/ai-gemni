@@ -4,7 +4,9 @@ from datetime import date, datetime
 from email.mime.text import MIMEText
 
 from google import genai
+from dotenv import load_dotenv
 
+load_dotenv()
 
 def load_local_env():
     """Load a local .env file without overwriting GitHub Actions secrets."""
