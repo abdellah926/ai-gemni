@@ -6,6 +6,10 @@ on:
     - cron: '0 9 * * *'  # Kola sbah m3a 10:00 d l-mghrib (UTC+1 = 09:00 UTC)
   workflow_dispatch:      # Kay-khllik t-runnih manuellement f l-blassa
 
+env:
+  COURSE_SUBJECT: Python
+  COURSE_START_DATE: '2026-09-08'
+
 jobs:
   run-script:
     runs-on: ubuntu-latest
@@ -14,12 +18,10 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - run: pip install google-genai
+      - run: pip install -r requirements.txt
       - run: python daily_learning.py
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           SENDER_EMAIL: ${{ secrets.SENDER_EMAIL }}
           SENDER_PASSWORD: ${{ secrets.SENDER_PASSWORD }}
           RECEIVER_EMAIL: ${{ secrets.RECEIVER_EMAIL }}
-          COURSE_SUBJECT: ${{ vars.COURSE_SUBJECT || 'Python' }}
-          COURSE_START_DATE: ${{ vars.COURSE_START_DATE || '2026-09-08' }}
