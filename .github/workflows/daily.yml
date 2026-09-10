@@ -1,9 +1,8 @@
-
 name: Daily Lesson Automation
 
 on:
   schedule:
-    - cron: '0 9 * * *'  # Kola sbah m3a 10:00 d l-mghrib (UTC+1 = 09:00 UTC)
+    - cron: '0 9,10 * * *'  # 10:00 AM Morocco / backup at 11:00 AM
   workflow_dispatch:      # Kay-khllik t-runnih manuellement f l-blassa
 
 env:
